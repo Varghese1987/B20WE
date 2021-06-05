@@ -2,7 +2,7 @@ var express = require('express');
 var router = express.Router();
 
 const {dbUrl,mongodb,mongoClient} = require("../dbconfig");
-const { hashing, hashCompare, createJWT } = require('../library/auth');
+const { hashing, hashCompare, createJWT, authenticate, permit } = require('../library/auth');
 
 /* GET users listing. */
 router.get('/', function(req, res, next) {
@@ -52,7 +52,8 @@ router.post("/login",async(req,res)=>{
        // generate token
        const token = await createJWT({
          email,
-         id:user._id
+         id:user._id,
+         role:user.role,
        })
       res.status(200).json({
         token,
@@ -73,13 +74,16 @@ router.post("/login",async(req,res)=>{
   }
 })
 
-router.get("/all-users",[],async(req,res)=>{
-  const headertoken = await req.headers.authorization;
-  console.log(headertoken);
-  if(headertoken)
-  res.json({
-    message:"All users"
-  })
+router.get("/all-users",[authenticate,permit(1,3)],async(req,res)=>{
+  const client = await mongoClient.connect(dbUrl);
+  try {
+    const db = client.db("b20WE");
+    const users = await db.collection("users").find().toArray();
+    res.status(200).json({users})
+   
+  } catch (error) {
+    console.log(error)
+  }
 })
 
 module.exports = router;
